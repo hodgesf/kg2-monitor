@@ -33,7 +33,7 @@ jobs:
           HOST="kg2cplover3.rtx.ai"
           BASE_URL="https://hodgesf.github.io/kg2-monitor"
           HEALTH_URL="https://$HOST:9990/healthcheck"
-          LOGS_URL="https://$HOST:9990/logs?num_lines=100"
+          LOGS_URL="https://$HOST:9990/logs"
 
           NOW_EPOCH=$(date -u +%s)
           NOW_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -53,15 +53,15 @@ jobs:
             LOGS=$(curl -k -s "$LOGS_URL" || echo "{}")
           fi
 
-          PREV_JSON=$(curl -s "$BASE_URL/status.json" || echo "")
-
-          if [ -z "$PREV_JSON" ]; then
+          # --- Robust previous state fetch ---
+          PREV_JSON=$(curl -f -s "$BASE_URL/status.json" || echo "{}")
+          if ! echo "$PREV_JSON" | jq . >/dev/null 2>&1; then
             PREV_JSON='{}'
           fi
 
-          PREV_STATUS=$(echo "$PREV_JSON" | jq -r '.status // "unknown"' 2>/dev/null || echo "unknown")
-          PREV_UP_SINCE=$(echo "$PREV_JSON" | jq -r '.up_since // empty' 2>/dev/null || echo "")
-          PREV_LAST_CRASH=$(echo "$PREV_JSON" | jq -r '.last_crash // empty' 2>/dev/null || echo "")
+          PREV_STATUS=$(echo "$PREV_JSON" | jq -r '.status // "unknown"')
+          PREV_UP_SINCE=$(echo "$PREV_JSON" | jq -r '.up_since // empty')
+          PREV_LAST_CRASH=$(echo "$PREV_JSON" | jq -r '.last_crash // empty')
 
           if [ "$STATUS" = "up" ]; then
             if [ "$PREV_STATUS" = "up" ] && [ -n "$PREV_UP_SINCE" ]; then
@@ -84,7 +84,20 @@ jobs:
 
           mkdir -p docs
 
-          jq -n \
+          # --- Guaranteed baseline ---
+          cat > docs/status.json <<EOF
+          {
+            "host": "$HOST",
+            "status": "$STATUS",
+            "last_checked": "$NOW_ISO",
+            "http_code": $HTTP_CODE,
+            "latency_ms": $LATENCY_MS,
+            "uptime_seconds": $UPTIME_SECONDS
+          }
+          EOF
+
+          # --- Build enriched JSON safely ---
+          FINAL_JSON=$(jq -n \
             --arg host "$HOST" \
             --arg status "$STATUS" \
             --arg time "$NOW_ISO" \
@@ -103,17 +116,23 @@ jobs:
               http_code: $http_code,
               latency_ms: $latency_ms,
               uptime_seconds: $uptime_seconds,
-              up_since: ($up_since | select(. != "")),
-              last_crash: ($last_crash | select(. != "")),
+              up_since: (if $up_since != "" then $up_since else null end),
+              last_crash: (if $last_crash != "" then $last_crash else null end),
               error: (if $status == "down" then $error else null end),
               logs: (
                 if $status == "down"
-                then $logs_raw | fromjson?
+                then ($logs_raw | fromjson? // $logs_raw)
                 else null
                 end
               )
             }
-            ' > docs/status.json
+            ')
+
+          if [ -n "$FINAL_JSON" ]; then
+            echo "$FINAL_JSON" > docs/status.json
+          else
+            echo "jq produced no output; keeping baseline" >&2
+          fi
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
