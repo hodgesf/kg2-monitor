@@ -1,4 +1,4 @@
-name: KG2 External Monitor
+name: KG2 Monitor + Pages Deploy
 
 on:
   schedule:
@@ -6,14 +6,16 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
 jobs:
   monitor:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Install dependencies
@@ -21,13 +23,14 @@ jobs:
 
       - name: Probe KG2 service
         run: |
-          SERVICE_URL="https://kg2cplover3.rtx.ai"
-          LOGS_URL="https://kg2cplover3.rtx.ai:9990/logs?num_lines=100"
+          HOST="kg2cplover3.rtx.ai"
+          SERVICE_URL="https://$HOST"
+          LOGS_URL="https://$HOST:9990/logs?num_lines=100"
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
           START=$(date +%s%3N)
 
-          HTTP_CODE=$(curl -sS -o response_body.txt \
+          HTTP_CODE=$(curl -k -sS -o /dev/null \
             -w "%{http_code}" \
             --connect-timeout 10 \
             --max-time 20 \
@@ -37,7 +40,7 @@ jobs:
           LATENCY_MS=$((END - START))
 
           STATUS="up"
-          ERROR=""
+          ERROR=null
           LOGS=null
 
           if [ "$HTTP_CODE" != "200" ]; then
@@ -53,10 +56,13 @@ jobs:
               ERROR="unknown_http_error"
             fi
 
-            LOGS=$(curl -sS --max-time 10 "$LOGS_URL" || echo "{}")
+            LOGS=$(curl -k -sS --max-time 10 "$LOGS_URL" || echo "{}")
           fi
 
+          mkdir -p docs
+
           jq -n \
+            --arg host "$HOST" \
             --arg url "$SERVICE_URL" \
             --arg status "$STATUS" \
             --arg http_code "$HTTP_CODE" \
@@ -65,20 +71,20 @@ jobs:
             --arg error "$ERROR" \
             --argjson logs "$LOGS" \
             '{
-              host: ($url | sub("^https?://"; "")),
+              host: $host,
               url: $url,
               status: $status,
               http_code: ($http_code | tonumber),
               latency_ms: ($latency | tonumber),
               last_checked: $time,
-              error: ($error | select(length > 0)),
+              error: ($error | select(. != "null")),
               logs: (if $status == "down" then $logs else null end)
-            }' > status.json
+            }' > docs/status.json
 
-      - name: Commit status update
-        run: |
-          git config user.name "kg2-monitor-bot"
-          git config user.email "actions@github.com"
-          git add status.json
-          git commit -m "KG2 status: $(jq -r .status status.json)" || exit 0
-          git push
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
