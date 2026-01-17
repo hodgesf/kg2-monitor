@@ -55,6 +55,10 @@ jobs:
 
           PREV_JSON=$(curl -s "$BASE_URL/status.json" || echo "")
 
+          if [ -z "$PREV_JSON" ]; then
+            PREV_JSON='{}'
+          fi
+
           PREV_STATUS=$(echo "$PREV_JSON" | jq -r '.status // "unknown"' 2>/dev/null || echo "unknown")
           PREV_UP_SINCE=$(echo "$PREV_JSON" | jq -r '.up_since // empty' 2>/dev/null || echo "")
           PREV_LAST_CRASH=$(echo "$PREV_JSON" | jq -r '.last_crash // empty' 2>/dev/null || echo "")
@@ -109,7 +113,8 @@ jobs:
                 end
               )
             }
-            ' > docs/status.json
+            ' | jq -c '.' > docs/status.json
+
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
