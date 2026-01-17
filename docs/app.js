@@ -1,4 +1,4 @@
-fetch('../status.json')
+fetch('status.json')
   .then(res => res.json())
   .then(data => {
     const host = document.getElementById('host');
