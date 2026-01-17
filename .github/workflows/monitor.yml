@@ -2,7 +2,7 @@ name: KG2 Monitor + Pages Deploy
 
 on:
   schedule:
-    - cron: "*/5 * * * *"   # every 5 minutes
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -25,17 +25,24 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Check KG2 health
+      - name: Run healthcheck
+        shell: bash
         run: |
+          set -euo pipefail
+
           HOST="kg2cplover3.rtx.ai"
           HEALTH_URL="https://$HOST:9990/healthcheck"
           LOGS_URL="https://$HOST:9990/logs?num_lines=100"
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
+          START=$(date +%s%3N)
           HTTP_CODE=$(curl -k -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" || echo 000)
+          END=$(date +%s%3N)
+
+          LATENCY_MS=$((END - START))
 
           STATUS="up"
-          ERROR=""
+          ERROR=null
           LOGS=null
 
           if [ "$HTTP_CODE" != "200" ]; then
@@ -50,14 +57,18 @@ jobs:
             --arg host "$HOST" \
             --arg status "$STATUS" \
             --arg time "$TIMESTAMP" \
+            --argjson http_code "$HTTP_CODE" \
+            --argjson latency_ms "$LATENCY_MS" \
             --arg error "$ERROR" \
             --argjson logs "$LOGS" \
             '{
               host: $host,
               status: $status,
+              http_code: $http_code,
+              latency_ms: $latency_ms,
               last_checked: $time,
-              error: ($error | select(length > 0)),
-              logs: (if $status == "down" then $logs else null end)
+              error: ($error | select(. != "null")),
+              logs: $logs
             }' > docs/status.json
 
       - name: Upload Pages artifact

@@ -1,16 +1,22 @@
-fetch('./status.json')
+const summary = document.getElementById('summary');
+const hostEl = document.getElementById('host');
+const details = document.getElementById('details');
+
+fetch('./status.json', { cache: 'no-store' })
   .then(res => {
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`);
     }
-    return res.json();
+    return res.text();
+  })
+  .then(text => {
+    if (!text.trim()) {
+      throw new Error('Empty status.json');
+    }
+    return JSON.parse(text);
   })
   .then(data => {
-    const host = document.getElementById('host');
-    const summary = document.getElementById('summary');
-    const details = document.getElementById('details');
-
-    host.textContent = data.host;
+    hostEl.textContent = data.host ?? 'Unknown host';
 
     if (data.status === 'up') {
       summary.textContent = '✅ Working as expected';
@@ -33,6 +39,7 @@ fetch('./status.json')
   })
   .catch(err => {
     console.error(err);
-    document.getElementById('summary').textContent =
-      '⚠️ Unable to load monitoring state';
+    summary.textContent = '⚠️ Unable to load monitoring state';
+    summary.className = 'unknown';
+    details.hidden = true;
   });
