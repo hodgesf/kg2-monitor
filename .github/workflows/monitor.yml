@@ -44,8 +44,8 @@ jobs:
           LATENCY_MS=$((END - START))
 
           STATUS="up"
-          ERROR=null
-          LOGS=null
+          ERROR=""
+          LOGS=""
 
           if [ "$HTTP_CODE" != "200" ]; then
             STATUS="down"
@@ -53,7 +53,6 @@ jobs:
             LOGS=$(curl -k -s "$LOGS_URL" || echo "{}")
           fi
 
-          # Fetch previous status if it exists
           PREV_JSON=$(curl -s "$BASE_URL/status.json" || echo "")
 
           PREV_STATUS=$(echo "$PREV_JSON" | jq -r '.status // "unknown"' 2>/dev/null || echo "unknown")
@@ -68,7 +67,7 @@ jobs:
             fi
             LAST_CRASH="$PREV_LAST_CRASH"
           else
-            UP_SINCE=null
+            UP_SINCE=""
             LAST_CRASH="$NOW_ISO"
           fi
 
@@ -105,8 +104,9 @@ jobs:
               error: (if $status == "down" then $error else null end),
               logs: (
                 if $status == "down"
-                then ($logs_raw | fromjson?)
+                then $logs_raw | fromjson?
                 else null
+                end
               )
             }
             ' > docs/status.json
