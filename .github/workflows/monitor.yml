@@ -90,18 +90,18 @@ jobs:
             --arg time "$NOW_ISO" \
             --argjson http_code "$HTTP_CODE" \
             --argjson latency_ms "$LATENCY_MS" \
+            --argjson uptime_seconds "$UPTIME_SECONDS" \
             --arg up_since "$UP_SINCE" \
             --arg last_crash "$LAST_CRASH" \
-            --argjson uptime_seconds "$UPTIME_SECONDS" \
             --arg error "$ERROR" \
             --arg logs_raw "$LOGS" \
             '
             {
               host: $host,
               status: $status,
+              last_checked: $time,
               http_code: $http_code,
               latency_ms: $latency_ms,
-              last_checked: $time,
               uptime_seconds: $uptime_seconds,
               up_since: ($up_since | select(. != "")),
               last_crash: ($last_crash | select(. != "")),
@@ -112,10 +112,8 @@ jobs:
                 else null
                 end
               )
-            } // {}
+            }
             ' > docs/status.json
-
-
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
