@@ -1,41 +1,53 @@
-const summary = document.getElementById('summary');
 const hostEl = document.getElementById('host');
+const summary = document.getElementById('summary');
 const details = document.getElementById('details');
+
+function formatDuration(seconds) {
+  if (!seconds || seconds <= 0) return '0s';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return [
+    h ? `${h}h` : null,
+    m ? `${m}m` : null,
+    `${s}s`
+  ].filter(Boolean).join(' ');
+}
 
 fetch('./status.json', { cache: 'no-store' })
   .then(res => {
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
-    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.text();
   })
   .then(text => {
-    if (!text.trim()) {
-      throw new Error('Empty status.json');
-    }
+    if (!text.trim()) throw new Error('Empty status.json');
     return JSON.parse(text);
   })
   .then(data => {
-    hostEl.textContent = data.host ?? 'Unknown host';
+    hostEl.textContent = data.host;
 
-    if (data.status === 'up') {
-      summary.textContent = '✅ Working as expected';
-      summary.className = 'up';
+    const rows = [
+      ['Status', data.status.toUpperCase()],
+      ['Last healthcheck', data.last_checked],
+      ['Healthcheck latency', `${data.latency_ms} ms`],
+      ['HTTP status', data.http_code],
+      ['Instance running since', data.up_since || '—'],
+      ['Time up', formatDuration(data.uptime_seconds)],
+      ['Last crash', data.last_crash || '—']
+    ];
+
+    summary.innerHTML = rows
+      .map(([k, v]) => `<div><strong>${k}:</strong> ${v}</div>`)
+      .join('');
+
+    summary.className = data.status === 'up' ? 'up' : 'down';
+
+    if (data.status === 'down' && data.logs) {
+      details.hidden = false;
+      details.textContent = JSON.stringify(data.logs, null, 2);
+    } else {
       details.hidden = true;
-      return;
     }
-
-    summary.textContent = '❌ SERVICE DOWN';
-    summary.className = 'down';
-
-    details.hidden = false;
-    details.textContent = JSON.stringify({
-      http_code: data.http_code,
-      latency_ms: data.latency_ms,
-      last_checked: data.last_checked,
-      error: data.error,
-      logs: data.logs
-    }, null, 2);
   })
   .catch(err => {
     console.error(err);
