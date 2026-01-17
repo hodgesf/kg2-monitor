@@ -54,28 +54,30 @@ jobs:
           mkdir -p docs
 
           jq -n \
-          --arg host "$HOST" \
-          --arg status "$STATUS" \
-          --arg time "$TIMESTAMP" \
-          --argjson http_code "$HTTP_CODE" \
-          --argjson latency_ms "$LATENCY_MS" \
-          --arg error "$ERROR" \
-          --arg logs_raw "$LOGS" \
-          '
-          {
-            host: $host,
-            status: $status,
-            http_code: $http_code,
-            latency_ms: $latency_ms,
-            last_checked: $time,
-            error: (if $status == "down" then $error else null end),
-            logs:
-              if $status == "down"
-              then ($logs_raw | fromjson?)
-              else null
-              end
-          }
-          ' > docs/status.json
+            --arg host "$HOST" \
+            --arg status "$STATUS" \
+            --arg time "$TIMESTAMP" \
+            --argjson http_code "$HTTP_CODE" \
+            --argjson latency_ms "$LATENCY_MS" \
+            --arg error "$ERROR" \
+            --arg logs_raw "$LOGS" \
+            '
+            {
+              host: $host,
+              status: $status,
+              http_code: $http_code,
+              latency_ms: $latency_ms,
+              last_checked: $time,
+              error: (if $status == "down" then $error else null end),
+              logs: (
+                if $status == "down"
+                then ($logs_raw | fromjson?)
+                else null
+                end
+              )
+            }
+            ' > docs/status.json
+
 
 
       - name: Upload Pages artifact
