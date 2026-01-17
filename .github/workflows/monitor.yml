@@ -42,8 +42,8 @@ jobs:
           LATENCY_MS=$((END - START))
 
           STATUS="up"
-          ERROR=null
-          LOGS=null
+          ERROR=""
+          LOGS=""
 
           if [ "$HTTP_CODE" != "200" ]; then
             STATUS="down"
@@ -60,16 +60,22 @@ jobs:
             --argjson http_code "$HTTP_CODE" \
             --argjson latency_ms "$LATENCY_MS" \
             --arg error "$ERROR" \
-            --argjson logs "$LOGS" \
-            '{
+            --arg logs_raw "$LOGS" \
+            '
+            {
               host: $host,
               status: $status,
               http_code: $http_code,
               latency_ms: $latency_ms,
               last_checked: $time,
-              error: ($error | select(. != "null")),
-              logs: $logs
-            }' > docs/status.json
+              error: (if $status == "down" then $error else null end),
+              logs: (
+                if $status == "down"
+                then ($logs_raw | fromjson? // {})
+                else null
+              )
+            }
+            ' > docs/status.json
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
