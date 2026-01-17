@@ -96,25 +96,23 @@ jobs:
             --arg error "$ERROR" \
             --arg logs_raw "$LOGS" \
             '
-            [
-              {
-                host: $host,
-                status: $status,
-                http_code: $http_code,
-                latency_ms: $latency_ms,
-                last_checked: $time,
-                up_since: ($up_since | select(. != "")),
-                uptime_seconds: $uptime_seconds,
-                last_crash: ($last_crash | select(. != "")),
-                error: (if $status == "down" then $error else null end),
-                logs: (
-                  if $status == "down"
-                  then $logs_raw | fromjson?
-                  else null
-                  end
-                )
-              }
-            ] | .[0]
+            {
+              host: $host,
+              status: $status,
+              http_code: $http_code,
+              latency_ms: $latency_ms,
+              last_checked: $time,
+              uptime_seconds: $uptime_seconds,
+              up_since: ($up_since | select(. != "")),
+              last_crash: ($last_crash | select(. != "")),
+              error: (if $status == "down" then $error else null end),
+              logs: (
+                if $status == "down"
+                then $logs_raw | fromjson?
+                else null
+                end
+              )
+            } // {}
             ' > docs/status.json
 
 
