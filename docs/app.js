@@ -1,6 +1,25 @@
 const hostEl = document.getElementById('host');
 const summary = document.getElementById('summary');
 const details = document.getElementById('details');
+const failureSection = document.getElementById('failure-section');
+
+function formatPST(isoString) {
+  if (!isoString) return '—';
+  const d = new Date(isoString);
+  if (isNaN(d)) return '—';
+
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+    timeZoneName: 'short'
+  }).format(d);
+}
 
 function formatDuration(seconds) {
   const s = Number(seconds);
@@ -50,31 +69,42 @@ fetch('./status.json', { cache: 'no-store' })
 
     const rows = [
       ['Status', data.status.toUpperCase()],
-      ['Last healthcheck', data.last_checked],
+      ['Last healthcheck', formatPST(data.last_checked)],
       ['Healthcheck latency', `${data.latency_ms} ms`],
       ['HTTP status', data.http_code],
-      ['Instance running since', data.up_since ?? '—'],
+      ['Instance running since', formatPST(data.up_since)],
       ['Time up', formatDuration(data.uptime_seconds)],
-      ['Last crash', data.last_crash ?? '—']
+      ['Last crash', formatPST(data.last_crash)]
     ];
 
     summary.innerHTML = rows
-      .map(([k, v]) => `<div><strong>${k}:</strong> ${v}</div>`)
+      .map(([k, v]) => {
+        const valueClass =
+          k === 'Status'
+            ? (data.status === 'up' ? 'status-up' : 'status-down')
+            : '';
+
+        return `
+          <div>
+            <strong>${k}:</strong>
+            <span class="${valueClass}">${v}</span>
+          </div>
+        `;
+      })
       .join('');
 
-    summary.className = data.status === 'up' ? 'up' : 'down';
-
     if (data.status === 'down' && data.logs) {
-      details.hidden = false;
+      failureSection.hidden = false;
       details.textContent = JSON.stringify(data.logs, null, 2);
     } else {
-      details.hidden = true;
+      failureSection.hidden = true;
+      details.textContent = '';
     }
   })
   .catch(err => {
     console.error('Status render failure:', err);
 
-    summary.textContent = '⚠️ Unable to load monitoring state';
-    summary.className = 'unknown';
-    details.hidden = true;
+    summary.innerHTML = '⚠️ Unable to load monitoring state';
+    failureSection.hidden = true;
+    details.textContent = '';
   });
